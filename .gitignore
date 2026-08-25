@@ -1,0 +1,33 @@
+# Environments
+venv/
+env/
+.env
+.venv/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Data & Checkpoints
+data/raw/
+data/processed/
+data/external/
+models/checkpoints/*.pth
+models/exported/
+logs/
+*.log
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

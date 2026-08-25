@@ -1,0 +1,114 @@
+# MedAgent Configuration
+
+project:
+  name: "MedAgent"
+  version: "0.1.0"
+  description: "Multimodal Medical AI Agent for Explainable Clinical Decision Support"
+  seed: 42
+
+# Signal Intelligence Configuration
+signals:
+  sampling_rate: 360 # MIT-BIH native sampling rate in Hz
+  lead_type: "MLII"  # Modified Lead II standard
+  filter:
+    type: "butterworth"
+    order: 4
+    lowcut: 0.5      # Highpass cutoff in Hz (baseline wander removal)
+    highcut: 45.0    # Lowpass cutoff in Hz (high-frequency noise removal)
+    notch_freq: 60.0 # Powerline frequency in Hz
+    notch_q: 30.0    # Quality factor for notch filter
+
+  normalization:
+    method: "zscore" # Options: zscore, minmax, none
+
+  segmentation:
+    mode: "beat"     # Options: beat, fixed_window
+    pre_r_samples: 90    # ~250ms before R-peak at 360 Hz
+    post_r_samples: 170  # ~472ms after R-peak at 360 Hz
+    beat_length: 260     # Total samples per heartbeat window
+    fixed_window_samples: 2500 # ~7 seconds continuous window
+
+  classes:
+    # AAMI 5-class standard mapping
+    aami_mapping:
+      # Normal & Bundle Branch Blocks -> 0: N
+      "N": 0
+      "L": 0
+      "R": 0
+      "B": 0
+      "e": 0
+      "j": 0
+      # Supraventricular Ectopic Beats -> 1: S
+      "A": 1
+      "a": 1
+      "J": 1
+      "S": 1
+      # Ventricular Ectopic Beats (PVC) -> 2: V
+      "V": 2
+      "E": 2
+      # Fusion Beats -> 3: F
+      "F": 3
+      # Unknown / Unclassifiable -> 4: Q
+      "/": 4
+      "f": 4
+      "Q": 4
+      "?": 4
+    num_classes: 5
+    class_names:
+      - "Normal (N)"
+      - "Supraventricular Ectopic (S)"
+      - "Ventricular Ectopic (V)"
+      - "Fusion (F)"
+      - "Unknown / Paced (Q)"
+
+  augmentation:
+    enabled: true
+    gaussian_noise_std: 0.02
+    amplitude_scale_range: [0.9, 1.1]
+    baseline_wander_prob: 0.3
+
+# Deep Learning Model Configurations
+models:
+  signals:
+    cnn1d:
+      in_channels: 1
+      sequence_length: 260
+      num_classes: 5
+      conv_channels: [32, 64, 128, 256]
+      kernel_sizes: [7, 5, 3, 3]
+      dropout: 0.3
+      fc_hidden: 128
+
+    transformer:
+      in_channels: 1
+      sequence_length: 260
+      num_classes: 5
+      patch_size: 20
+      embed_dim: 128
+      num_heads: 8
+      num_layers: 4
+      mlp_dim: 256
+      dropout: 0.2
+
+    lstm:
+      in_channels: 1
+      sequence_length: 260
+      num_classes: 5
+      hidden_dim: 128
+      num_layers: 2
+      bidirectional: true
+      dropout: 0.3
+
+# Training Hyperparameters
+training:
+  batch_size: 64
+  num_workers: 0  # 0 for Windows compatibility
+  num_epochs: 30
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler: "cosine" # Options: cosine, plateau, none
+  early_stopping_patience: 7
+  class_weights_balanced: true
+  device: "cuda"  # Auto falls back to cpu if cuda unavailable
+  val_split: 0.15
+  test_split: 0.15
