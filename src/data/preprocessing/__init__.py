@@ -14,6 +14,12 @@ from src.data.preprocessing.ecg_cleaner import (
     normalize_signal,
     segment_beats_from_r_peaks,
 )
+from src.data.preprocessing.image_transforms import (
+    DEFAULT_IMAGENET_MEAN,
+    DEFAULT_IMAGENET_STD,
+    denormalize_image,
+    get_xray_transforms,
+)
 
 __all__ = [
     "apply_bandpass_filter",
@@ -25,4 +31,8 @@ __all__ = [
     "extract_beats_from_record",
     "AAMI_CLASSES",
     "AAMI_SYMBOL_MAP",
+    "get_xray_transforms",
+    "denormalize_image",
+    "DEFAULT_IMAGENET_MEAN",
+    "DEFAULT_IMAGENET_STD",
 ]
