@@ -14,6 +14,13 @@ from src.data.loaders.xray_dataset import (
     XRayDataset,
     get_xray_dataloaders,
 )
+from src.data.loaders.multimodal_dataset import (
+    RISK_CLASSES,
+    TABULAR_FEATURE_NAMES,
+    MultimodalDataset,
+    determine_clinical_risk,
+    get_multimodal_dataloaders,
+)
 
 __all__ = [
     "ECGDataset",
@@ -23,4 +30,9 @@ __all__ = [
     "get_xray_dataloaders",
     "XRAY_CLASSES",
     "FOLDER_TO_CLASS_ID",
+    "MultimodalDataset",
+    "get_multimodal_dataloaders",
+    "RISK_CLASSES",
+    "determine_clinical_risk",
+    "TABULAR_FEATURE_NAMES",
 ]
