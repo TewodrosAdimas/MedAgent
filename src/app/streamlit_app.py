@@ -9,6 +9,7 @@ A multimodal clinical cockpit empowering physicians and healthcare practitioners
 """
 
 import io
+import json
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -31,6 +32,7 @@ from src.agents.supervisor_agent import SupervisorAgent
 from src.data.loaders.ecg_dataset import AAMI_CLASSES
 from src.data.loaders.multimodal_dataset import RISK_CLASSES
 from src.data.loaders.xray_dataset import XRAY_CLASSES, XRayDataset
+from src.data.preprocessing.ecg_cleaner import clean_ecg
 from src.data.preprocessing.image_transforms import denormalize_image, get_xray_transforms
 from src.models.fusion.multimodal_transformer import MultimodalTransformerFusion
 from src.models.signals.ecg_cnn import ECG1DCNN
@@ -101,6 +103,13 @@ st.markdown(
         font-size: 0.88rem;
         color: #1E40AF;
         margin-bottom: 1rem;
+    }
+    .upload-box {
+        background-color: #F9FAFB;
+        border: 1px dashed #9CA3AF;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 10px;
     }
     </style>
     """,
@@ -195,6 +204,50 @@ ecg_beats, ecg_labels, xray_dataset = load_sample_datasets()
 
 
 # ==============================================================================
+# Helper Functions for Parsing Uploaded Modalities
+# ==============================================================================
+def parse_uploaded_signal(uploaded_file) -> Optional[np.ndarray]:
+    """Parses an uploaded CSV, NPY, JSON, or TXT file into a 1D NumPy float32 signal."""
+    try:
+        fname = uploaded_file.name.lower()
+        if fname.endswith(".npy"):
+            arr = np.load(uploaded_file)
+            arr = arr.flatten().astype(np.float32)
+        elif fname.endswith(".csv"):
+            df = pd.read_csv(uploaded_file, header=None)
+            arr = df.values.flatten().astype(np.float32)
+        elif fname.endswith(".json"):
+            data = json.load(uploaded_file)
+            if isinstance(data, list):
+                arr = np.array(data, dtype=np.float32)
+            elif isinstance(data, dict) and "signal" in data:
+                arr = np.array(data["signal"], dtype=np.float32)
+            else:
+                arr = np.array(list(data.values()), dtype=np.float32)
+        else:
+            # Default TXT parsing (comma, whitespace, or newline separated)
+            content = uploaded_file.read().decode("utf-8")
+            raw_vals = [float(x.strip()) for x in content.replace(",", " ").split() if x.strip()]
+            arr = np.array(raw_vals, dtype=np.float32)
+
+        if len(arr) == 0:
+            return None
+
+        # Clean/resample or slice/pad to 260 samples
+        if len(arr) < 260:
+            arr = np.pad(arr, (0, 260 - len(arr)), mode="edge")
+        elif len(arr) > 260:
+            # If large raw signal, try filtering
+            cleaned = clean_ecg(arr, sampling_rate=360.0)
+            arr = cleaned[:260]
+
+        return arr
+    except Exception as e:
+        st.error(f"Error parsing ECG signal file: {str(e)}")
+        return None
+
+
+# ==============================================================================
 # Clinical Demo Presets
 # ==============================================================================
 PRESET_CASES = {
@@ -269,8 +322,8 @@ with st.sidebar:
     st.caption("Multimodal Medical AI Clinical Decision Support")
 
     st.markdown("---")
-    st.subheader("👤 Patient Case Selector")
-    case_choice = st.selectbox("Select Patient Profile", list(PRESET_CASES.keys()) + ["Custom Patient Case"])
+    st.subheader("👤 Patient Profile")
+    case_choice = st.selectbox("Select Profile Preset", list(PRESET_CASES.keys()) + ["Custom Patient Case"])
 
     if case_choice != "Custom Patient Case":
         case_data = PRESET_CASES[case_choice]
@@ -308,8 +361,8 @@ with st.sidebar:
     medical_notes = st.text_area("Physician Notes", value=default_notes, height=70)
 
     st.markdown("---")
-    device_name = "CUDA (GPU)" if torch.cuda.is_available() else "CPU"
-    st.info(f"**Hardware Engine**: {device_name}\n\n**Safety Layer**: Active (Human-in-the-Loop)")
+    device_name = "CUDA (NVIDIA RTX 5050)" if torch.cuda.is_available() else "CPU"
+    st.info(f"**Hardware Engine**: {device_name}\n\n**Trained Checkpoints**: Active\n\n**Safety Layer**: Active (HITL)")
 
 
 # Compile Patient Information
@@ -356,37 +409,6 @@ tabular_vector = torch.tensor(
 
 
 # ==============================================================================
-# Fetch Sample Modality Data based on Selection
-# ==============================================================================
-selected_ecg_signal = None
-if ecg_beats is not None:
-    if case_choice != "Custom Patient Case":
-        target_ecg_cls = PRESET_CASES[case_choice]["ecg_class_idx"]
-        matching_indices = np.where(ecg_labels == target_ecg_cls)[0]
-        chosen_idx = matching_indices[0] if len(matching_indices) > 0 else 0
-        selected_ecg_signal = ecg_beats[chosen_idx]
-    else:
-        selected_ecg_signal = ecg_beats[0]
-else:
-    # Synthetic default sine waveform
-    selected_ecg_signal = np.sin(np.linspace(0, 4 * np.pi, 260)).astype(np.float32)
-
-selected_xray_img = None
-if xray_dataset is not None:
-    if case_choice != "Custom Patient Case":
-        target_xray_cls_name = PRESET_CASES[case_choice]["xray_class_name"]
-        target_xray_cls_id = [k for k, v in XRAY_CLASSES.items() if v == target_xray_cls_name][0]
-        # find matching sample
-        matching_samples = [s for s in xray_dataset.samples if s[1] == target_xray_cls_id]
-        if matching_samples:
-            selected_xray_img = Image.open(matching_samples[0][0]).convert("RGB")
-    if selected_xray_img is None and len(xray_dataset.samples) > 0:
-        selected_xray_img = Image.open(xray_dataset.samples[0][0]).convert("RGB")
-if selected_xray_img is None:
-    selected_xray_img = Image.new("RGB", (224, 224), color=(128, 128, 128))
-
-
-# ==============================================================================
 # Header & Safety Banner
 # ==============================================================================
 st.markdown('<div class="main-header">🏥 MedAgent Clinical Decision Support Console</div>', unsafe_allow_html=True)
@@ -421,18 +443,70 @@ tab_ecg, tab_vision, tab_multimodal, tab_agent = st.tabs([
 # TAB 1: Physiological Signal Intelligence (ECG)
 # ==============================================================================
 with tab_ecg:
-    st.subheader("1D Single-Lead ECG Analysis & Arrhythmia Classification")
+    st.subheader("1D Single-Lead ECG Waveform Intelligence & Arrhythmia Classification")
+
+    # ECG Signal Input Source Selector
+    ecg_source = st.radio(
+        "Select ECG Signal Source:",
+        ["📁 Preset / Cohort Case", "📤 Upload Custom ECG File (.csv, .npy, .txt, .json)", "✍️ Paste Numeric Signal Values"],
+        horizontal=True,
+    )
+
+    current_ecg_signal = None
+
+    if ecg_source == "📁 Preset / Cohort Case":
+        if ecg_beats is not None:
+            if case_choice != "Custom Patient Case":
+                target_ecg_cls = PRESET_CASES[case_choice]["ecg_class_idx"]
+                matching_indices = np.where(ecg_labels == target_ecg_cls)[0]
+                chosen_idx = matching_indices[0] if len(matching_indices) > 0 else 0
+                current_ecg_signal = ecg_beats[chosen_idx]
+            else:
+                beat_idx = st.slider("Select Sample Beat Index from MIT-BIH Database", 0, len(ecg_beats) - 1, 0)
+                current_ecg_signal = ecg_beats[beat_idx]
+        else:
+            current_ecg_signal = np.sin(np.linspace(0, 4 * np.pi, 260)).astype(np.float32)
+
+    elif ecg_source == "📤 Upload Custom ECG File (.csv, .npy, .txt, .json)":
+        uploaded_ecg = st.file_uploader("Choose an ECG Signal File", type=["csv", "npy", "txt", "json"], key="ecg_uploader")
+        if uploaded_ecg is not None:
+            parsed = parse_uploaded_signal(uploaded_ecg)
+            if parsed is not None:
+                current_ecg_signal = parsed
+                st.success(f"Successfully loaded {len(current_ecg_signal)} samples from `{uploaded_ecg.name}`.")
+        if current_ecg_signal is None:
+            current_ecg_signal = ecg_beats[0] if ecg_beats is not None else np.sin(np.linspace(0, 4 * np.pi, 260)).astype(np.float32)
+            st.info("Awaiting file upload. Showing default baseline waveform.")
+
+    elif ecg_source == "✍️ Paste Numeric Signal Values":
+        default_str = ",".join([f"{v:.3f}" for v in (ecg_beats[0] if ecg_beats is not None else np.zeros(260))])
+        raw_text = st.text_area("Enter comma or space-separated signal float values (e.g. 260 samples):", value=default_str, height=100)
+        try:
+            vals = [float(x.strip()) for x in raw_text.replace(",", " ").split() if x.strip()]
+            if len(vals) >= 10:
+                arr = np.array(vals, dtype=np.float32)
+                if len(arr) < 260:
+                    arr = np.pad(arr, (0, 260 - len(arr)), mode="edge")
+                current_ecg_signal = arr[:260]
+            else:
+                st.warning("Please provide at least 10 signal values.")
+                current_ecg_signal = ecg_beats[0] if ecg_beats is not None else np.zeros(260, dtype=np.float32)
+        except Exception:
+            current_ecg_signal = ecg_beats[0] if ecg_beats is not None else np.zeros(260, dtype=np.float32)
+
+    # Save active ECG signal to session state for multimodal tabs
+    st.session_state["active_ecg_signal"] = current_ecg_signal
+
     col_sig1, col_sig2 = st.columns([3, 2])
 
     with col_sig1:
         st.markdown("##### Interactive ECG Beat Waveform (260 Samples, Lead MLII)")
-        # Plotly ECG Chart
         fig = go.Figure()
-        time_axis = np.arange(len(selected_ecg_signal)) / 360.0 * 1000.0  # ms
+        time_axis = np.arange(len(current_ecg_signal)) / 360.0 * 1000.0  # ms
         fig.add_trace(
             go.Scatter(
                 x=time_axis,
-                y=selected_ecg_signal,
+                y=current_ecg_signal,
                 mode="lines",
                 name="ECG Signal",
                 line=dict(color="#2563EB", width=2.5),
@@ -440,11 +514,11 @@ with tab_ecg:
         )
 
         # Mark peak
-        peak_idx = int(np.argmax(selected_ecg_signal))
+        peak_idx = int(np.argmax(current_ecg_signal))
         fig.add_trace(
             go.Scatter(
                 x=[time_axis[peak_idx]],
-                y=[selected_ecg_signal[peak_idx]],
+                y=[current_ecg_signal[peak_idx]],
                 mode="markers+text",
                 name="R-Peak",
                 text=["R-Peak"],
@@ -464,13 +538,16 @@ with tab_ecg:
         st.plotly_chart(fig, use_container_width=True)
 
     with col_sig2:
-        # Run ECG Model Inference
-        ecg_tensor = torch.from_numpy(selected_ecg_signal).unsqueeze(0).unsqueeze(0).to(systems["device"])
+        # Run ECG Model Inference with Trained Checkpoint
+        ecg_tensor = torch.from_numpy(current_ecg_signal).unsqueeze(0).unsqueeze(0).to(systems["device"])
         with torch.no_grad():
             ecg_logits, ecg_latent = systems["ecg_model"](ecg_tensor)
             ecg_probs = F.softmax(ecg_logits, dim=-1).cpu().numpy()[0]
 
         signal_analysis = systems["signal_agent"].analyze(ecg_logits.cpu().numpy(), heart_rate_bpm=hr_bpm)
+        st.session_state["active_ecg_logits"] = ecg_logits
+        st.session_state["active_ecg_latent"] = ecg_latent
+        st.session_state["active_signal_analysis"] = signal_analysis
 
         st.markdown("##### Arrhythmia Classification Distribution (AAMI EC57)")
         df_ecg = pd.DataFrame({
@@ -517,36 +594,92 @@ with tab_ecg:
 with tab_vision:
     st.subheader("Thoracic Radiograph Deep Learning & Grad-CAM Spatial Localization")
 
+    # Image Input Source Selector
+    img_source = st.radio(
+        "Select Chest Radiograph Source:",
+        ["📁 Preset / Dataset Image", "📤 Upload Custom Chest X-Ray (.png, .jpg, .jpeg)"],
+        horizontal=True,
+    )
+
+    current_xray_img = None
+
+    if img_source == "📁 Preset / Dataset Image":
+        if xray_dataset is not None:
+            if case_choice != "Custom Patient Case":
+                target_xray_cls_name = PRESET_CASES[case_choice]["xray_class_name"]
+                target_xray_cls_id = [k for k, v in XRAY_CLASSES.items() if v == target_xray_cls_name][0]
+                matching_samples = [s for s in xray_dataset.samples if s[1] == target_xray_cls_id]
+                if matching_samples:
+                    current_xray_img = Image.open(matching_samples[0][0]).convert("RGB")
+            else:
+                cls_filter = st.selectbox("Select Pathology Class", list(XRAY_CLASSES.values()))
+                cls_id = [k for k, v in XRAY_CLASSES.items() if v == cls_filter][0]
+                matching_samples = [s for s in xray_dataset.samples if s[1] == cls_id]
+                if matching_samples:
+                    sample_idx = st.slider("Sample Index", 0, len(matching_samples) - 1, 0)
+                    current_xray_img = Image.open(matching_samples[sample_idx][0]).convert("RGB")
+
+        if current_xray_img is None and xray_dataset is not None and len(xray_dataset.samples) > 0:
+            current_xray_img = Image.open(xray_dataset.samples[0][0]).convert("RGB")
+
+    elif img_source == "📤 Upload Custom Chest X-Ray (.png, .jpg, .jpeg)":
+        uploaded_xray = st.file_uploader(
+            "Choose a Chest Radiograph Image File",
+            type=["png", "jpg", "jpeg", "bmp", "webp"],
+            key="xray_uploader",
+        )
+        if uploaded_xray is not None:
+            try:
+                current_xray_img = Image.open(uploaded_xray).convert("RGB")
+                st.success(f"Loaded radiograph: `{uploaded_xray.name}` ({current_xray_img.size[0]}x{current_xray_img.size[1]})")
+            except Exception as e:
+                st.error(f"Error reading image: {str(e)}")
+
+        if current_xray_img is None:
+            if xray_dataset is not None and len(xray_dataset.samples) > 0:
+                current_xray_img = Image.open(xray_dataset.samples[0][0]).convert("RGB")
+            else:
+                current_xray_img = Image.new("RGB", (224, 224), color=(128, 128, 128))
+            st.info("Awaiting image upload. Showing default radiograph.")
+
+    if current_xray_img is None:
+        current_xray_img = Image.new("RGB", (224, 224), color=(128, 128, 128))
+
+    # Save active image to session state
+    st.session_state["active_xray_img"] = current_xray_img
+
     col_v_left, col_v_mid, col_v_right = st.columns([1.5, 1.5, 1.5])
 
     # Transform image for model
     xray_trans = get_xray_transforms(image_size=224, is_training=False)
-    xray_tensor = xray_trans(selected_xray_img).unsqueeze(0).to(systems["device"])
+    xray_tensor = xray_trans(current_xray_img).unsqueeze(0).to(systems["device"])
 
-    # Grad-CAM Options
     with col_v_left:
-        st.markdown("##### 1. Original Radiograph")
-        st.image(selected_xray_img, use_container_width=True, caption="Anterior-Posterior (AP/PA) Radiograph")
+        st.markdown("##### 1. Active Radiograph")
+        st.image(current_xray_img, use_container_width=True, caption="Radiograph Presentation")
 
     with col_v_mid:
         st.markdown("##### 2. Grad-CAM Attention Overlay")
         alpha_slider = st.slider("Heatmap Opacity (α)", 0.0, 1.0, 0.55, step=0.05)
         cmap_choice = st.selectbox("Color Mapping", ["jet", "plasma", "turbo", "magma"], index=0)
 
-        # Generate overlay
         overlay_rgb, heatmap = systems["gradcam"].generate_overlay(
             xray_tensor,
             target_class=None,
             alpha=alpha_slider,
             colormap=cmap_choice,
         )
-        st.image(overlay_rgb, use_container_width=True, caption=f"Penultimate Layer Activation (α={alpha_slider})")
+        st.image(overlay_rgb, use_container_width=True, caption=f"Grad-CAM Heatmap (α={alpha_slider})")
 
     with col_v_right:
         st.markdown("##### 3. Diagnostic Probabilities")
         with torch.no_grad():
             xray_logits, vision_latent = systems["xray_model"](xray_tensor)
             xray_probs = F.softmax(xray_logits, dim=-1).cpu().numpy()[0]
+
+        st.session_state["active_xray_logits"] = xray_logits
+        st.session_state["active_vision_latent"] = vision_latent
+        st.session_state["active_heatmap"] = heatmap
 
         df_xray = pd.DataFrame({
             "Pathology": [XRAY_CLASSES[i] for i in range(5)],
@@ -568,6 +701,7 @@ with tab_vision:
     st.markdown("---")
     st.markdown("##### 🩻 ImagingAgent Radiological Report")
     imaging_analysis = systems["imaging_agent"].analyze(xray_logits.cpu().numpy(), gradcam_heatmap=heatmap)
+    st.session_state["active_imaging_analysis"] = imaging_analysis
 
     col_ir1, col_ir2 = st.columns([1, 2])
     with col_ir1:
@@ -589,17 +723,24 @@ with tab_vision:
 with tab_multimodal:
     st.subheader("Cross-Attention Multimodal Patient Risk Stratification")
 
+    # Fetch active latents
+    act_ecg_latent = st.session_state.get("active_ecg_latent", ecg_latent)
+    act_vis_latent = st.session_state.get("active_vision_latent", vision_latent)
+    act_sig_res = st.session_state.get("active_signal_analysis", signal_analysis)
+    act_img_res = st.session_state.get("active_imaging_analysis", imaging_analysis)
+
     # Forward pass multimodal fusion transformer
     with torch.no_grad():
-        risk_logits, patient_rep = systems["fusion_model"](ecg_latent, vision_latent, tabular_vector)
+        risk_logits, patient_rep = systems["fusion_model"](act_ecg_latent, act_vis_latent, tabular_vector)
         risk_probs = F.softmax(risk_logits, dim=-1).cpu().numpy()[0]
 
     risk_analysis = systems["risk_agent"].evaluate_risk(
-        signal_res=signal_analysis,
-        imaging_res=imaging_analysis,
+        signal_res=act_sig_res,
+        imaging_res=act_img_res,
         patient_info=patient_dict,
         multimodal_logits_or_probs=risk_probs,
     )
+    st.session_state["active_risk_analysis"] = risk_analysis
 
     col_m1, col_m2, col_m3 = st.columns([1.5, 1.5, 2])
 
@@ -625,8 +766,8 @@ with tab_multimodal:
         fig_radar = go.Figure(
             data=go.Scatterpolar(
                 r=[
-                    signal_analysis.confidence * (0.9 if signal_analysis.predicted_class != 0 else 0.2),
-                    imaging_analysis.confidence * (0.9 if imaging_analysis.predicted_class != 0 else 0.2),
+                    act_sig_res.confidence * (0.9 if act_sig_res.predicted_class != 0 else 0.2),
+                    act_img_res.confidence * (0.9 if act_img_res.predicted_class != 0 else 0.2),
                     min(1.0, (age / 100.0) * (1.3 if hypertension or diabetes else 0.9)),
                     1.0 if (hr_bpm > 100 or hr_bpm < 55) else 0.3,
                     1.0 if spo2 < 93 else 0.2,
@@ -660,10 +801,14 @@ with tab_multimodal:
 with tab_agent:
     st.subheader("Multi-Agent Clinical Decision Support & Practice Guidelines (RAG)")
 
+    act_sig_res = st.session_state.get("active_signal_analysis", signal_analysis)
+    act_img_res = st.session_state.get("active_imaging_analysis", imaging_analysis)
+    act_risk_res = st.session_state.get("active_risk_analysis", risk_analysis)
+
     # Execute Evidence Agent retrieval
     evidence_res = systems["evidence_agent"].retrieve_evidence(
-        signal_findings=signal_analysis.clinical_interpretation,
-        imaging_findings=imaging_analysis.radiological_finding,
+        signal_findings=act_sig_res.clinical_interpretation,
+        imaging_findings=act_img_res.radiological_finding,
         patient_context=f"Age {age}, Sex {sex}, Vitals: HR {hr_bpm}, BP {bp}, SpO2 {spo2}%. Comorbidities: {medical_notes}",
         top_k=2,
     )
@@ -671,17 +816,17 @@ with tab_agent:
     # Generate Report
     report = systems["report_agent"].generate_report(
         patient_info=patient_dict,
-        signal_res=signal_analysis,
-        imaging_res=imaging_analysis,
-        risk_res=risk_analysis,
+        signal_res=act_sig_res,
+        imaging_res=act_img_res,
+        risk_res=act_risk_res,
         evidence_res=evidence_res,
     )
 
     # Safety Validation via Supervisor
     is_safe, val_notes = systems["supervisor_agent"]._validate_safety(
-        signal_res=signal_analysis,
-        imaging_res=imaging_analysis,
-        risk_res=risk_analysis,
+        signal_res=act_sig_res,
+        imaging_res=act_img_res,
+        risk_res=act_risk_res,
         report=report,
     )
 
@@ -701,8 +846,6 @@ with tab_agent:
                 mime="text/markdown",
             )
         with col_d2:
-            import json
-
             st.download_button(
                 label="📥 Export Structured JSON Data",
                 data=json.dumps(report.structured_data, indent=2),
