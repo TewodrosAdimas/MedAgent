@@ -1,0 +1,223 @@
+{
+  "ecg": {
+    "accuracy": 0.9404388714733543,
+    "balanced_accuracy": 0.5587532370700272,
+    "macro_f1": 0.501458559267099,
+    "weighted_f1": 0.9519004739633629,
+    "macro_precision": 0.4960356546422561,
+    "macro_recall": 0.5587532370700272,
+    "auroc": null,
+    "confusion_matrix": [
+      [
+        885,
+        36,
+        10,
+        35
+      ],
+      [
+        4,
+        2,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        0,
+        1,
+        613
+      ]
+    ],
+    "per_class": {
+      "Normal (N)": {
+        "class_id": 0,
+        "support": 966,
+        "sensitivity": 0.9161490683229814,
+        "specificity": 0.9793322734499205,
+        "ppv_precision": 0.9855233853006682,
+        "npv": 0.8837876614060258,
+        "f1_score": 0.9495708154506438
+      },
+      "Supraventricular Ectopic (S)": {
+        "class_id": 1,
+        "support": 6,
+        "sensitivity": 0.3333333333333333,
+        "specificity": 0.9773442416614223,
+        "ppv_precision": 0.05263157894736842,
+        "npv": 0.9974309569685292,
+        "f1_score": 0.09090909090909091
+      },
+      "Ventricular Ectopic (V)": {
+        "class_id": 2,
+        "support": 1,
+        "sensitivity": 0.0,
+        "specificity": 0.993099121706399,
+        "ppv_precision": 0.0,
+        "npv": 0.9993686868686869,
+        "f1_score": 0.0
+      },
+      "Unknown / Paced (Q)": {
+        "class_id": 4,
+        "support": 622,
+        "sensitivity": 0.9855305466237942,
+        "specificity": 0.9640287769784173,
+        "ppv_precision": 0.9459876543209876,
+        "npv": 0.9904963041182682,
+        "f1_score": 0.9653543307086614
+      }
+    }
+  },
+  "xray": {
+    "accuracy": 1.0,
+    "balanced_accuracy": 1.0,
+    "macro_f1": 1.0,
+    "weighted_f1": 1.0,
+    "macro_precision": 1.0,
+    "macro_recall": 1.0,
+    "auroc": 1.0,
+    "confusion_matrix": [
+      [
+        8,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        7,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        8,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        8,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        7
+      ]
+    ],
+    "per_class": {
+      "Normal": {
+        "class_id": 0,
+        "support": 8,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "ppv_precision": 1.0,
+        "npv": 1.0,
+        "f1_score": 1.0
+      },
+      "Pneumonia": {
+        "class_id": 1,
+        "support": 7,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "ppv_precision": 1.0,
+        "npv": 1.0,
+        "f1_score": 1.0
+      },
+      "Cardiomegaly": {
+        "class_id": 2,
+        "support": 8,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "ppv_precision": 1.0,
+        "npv": 1.0,
+        "f1_score": 1.0
+      },
+      "Atelectasis": {
+        "class_id": 3,
+        "support": 8,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "ppv_precision": 1.0,
+        "npv": 1.0,
+        "f1_score": 1.0
+      },
+      "Pleural Effusion": {
+        "class_id": 4,
+        "support": 7,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "ppv_precision": 1.0,
+        "npv": 1.0,
+        "f1_score": 1.0
+      }
+    }
+  },
+  "multimodal_risk": {
+    "accuracy": 0.9133333333333333,
+    "balanced_accuracy": 0.9433243727598567,
+    "macro_f1": 0.9337202364809892,
+    "weighted_f1": 0.9145837175245429,
+    "macro_precision": 0.9277660324171952,
+    "macro_recall": 0.9433243727598567,
+    "auroc": 0.9929752201767332,
+    "confusion_matrix": [
+      [
+        9,
+        0,
+        0
+      ],
+      [
+        0,
+        45,
+        3
+      ],
+      [
+        0,
+        10,
+        83
+      ]
+    ],
+    "per_class": {
+      "Low Risk": {
+        "class_id": 0,
+        "support": 9,
+        "sensitivity": 1.0,
+        "specificity": 1.0,
+        "ppv_precision": 1.0,
+        "npv": 1.0,
+        "f1_score": 1.0
+      },
+      "Moderate Risk": {
+        "class_id": 1,
+        "support": 48,
+        "sensitivity": 0.9375,
+        "specificity": 0.9019607843137255,
+        "ppv_precision": 0.8181818181818182,
+        "npv": 0.968421052631579,
+        "f1_score": 0.8737864077669902
+      },
+      "High / Critical Risk": {
+        "class_id": 2,
+        "support": 93,
+        "sensitivity": 0.8924731182795699,
+        "specificity": 0.9473684210526315,
+        "ppv_precision": 0.9651162790697675,
+        "npv": 0.84375,
+        "f1_score": 0.9273743016759777
+      }
+    }
+  }
+}

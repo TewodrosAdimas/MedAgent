@@ -21,6 +21,7 @@ build/
 data/raw/
 data/processed/
 data/external/
+models/checkpoints/*.pt
 models/checkpoints/*.pth
 models/exported/
 logs/

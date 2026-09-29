@@ -117,9 +117,17 @@ def load_medagent_systems():
 
     # Neural networks
     ecg_model = ECG1DCNN(in_channels=1, num_classes=5, latent_dim=256).to(device)
+    ecg_ckpt = Path("models/checkpoints/ecg_cnn_best.pt")
+    if ecg_ckpt.exists():
+        ckpt = torch.load(str(ecg_ckpt), map_location=device, weights_only=False)
+        ecg_model.load_state_dict(ckpt["model_state_dict"])
     ecg_model.eval()
 
     xray_model = XRayDenseNet121(num_classes=5, pretrained=False, latent_dim=256).to(device)
+    xray_ckpt = Path("models/checkpoints/xray_densenet_best.pt")
+    if xray_ckpt.exists():
+        ckpt = torch.load(str(xray_ckpt), map_location=device, weights_only=False)
+        xray_model.load_state_dict(ckpt["model_state_dict"])
     xray_model.eval()
 
     fusion_model = MultimodalTransformerFusion(
@@ -129,6 +137,10 @@ def load_medagent_systems():
         embed_dim=256,
         num_risk_classes=3,
     ).to(device)
+    fusion_ckpt = Path("models/checkpoints/fusion_transformer_weights.pt")
+    if fusion_ckpt.exists():
+        ckpt = torch.load(str(fusion_ckpt), map_location=device, weights_only=False)
+        fusion_model.load_state_dict(ckpt["model_state_dict"])
     fusion_model.eval()
 
     gradcam = GradCAM(xray_model)

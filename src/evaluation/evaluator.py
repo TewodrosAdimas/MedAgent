@@ -55,11 +55,9 @@ class ModelEvaluator:
                 tabular = batch["tabular"].to(self.device)
                 target = batch["risk_label"].to(self.device)
 
-                # Multimodal forward expects latent embeddings from sub-encoders if not integrated
-                # If model is direct MultimodalTransformerFusion, we extract or pass through
-                if hasattr(model, "ecg_proj"):
-                    # Standalone fusion model with pre-extracted or simulated latents
-                    # Or full end-to-end model
+                if hasattr(model, "ecg_model"):
+                    logits, _ = model(ecg, image, tabular)
+                elif hasattr(model, "ecg_proj"):
                     logits, _ = model(ecg.squeeze(1)[:, :256], image[:, 0, :16, :16].flatten(1)[:, :256], tabular)
                 else:
                     logits, _ = model(ecg, image, tabular)
@@ -128,7 +126,9 @@ class Trainer:
                 target = batch["risk_label"].to(self.device)
 
                 with torch.amp.autocast("cuda", enabled=self.use_amp):
-                    if hasattr(self.model, "ecg_proj"):
+                    if hasattr(self.model, "ecg_model"):
+                        out = self.model(ecg, image, tabular)
+                    elif hasattr(self.model, "ecg_proj"):
                         out = self.model(
                             ecg.squeeze(1)[:, :256],
                             image[:, 0, :16, :16].flatten(1)[:, :256],
