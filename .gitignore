@@ -25,6 +25,7 @@ models/checkpoints/*.pth
 models/exported/
 logs/
 *.log
+scratch/
 
 # IDE & OS
 .vscode/

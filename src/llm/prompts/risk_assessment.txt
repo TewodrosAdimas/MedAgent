@@ -1,8 +1,0 @@
-Evaluate the overall clinical risk for the patient based on multimodal evidence:
-- ECG finding: {signal_finding} (Confidence: {signal_confidence})
-- Chest Radiograph finding: {image_finding} (Confidence: {image_confidence})
-- Salient Anatomical Regions: {salient_regions}
-- Patient Demographics: Age {age}, Sex {sex}, Blood Pressure {bp}, History {history}
-- Cross-Modal Interaction: {modality_attention}
-
-Determine the stratified risk level (Low Risk, Moderate Risk, High / Critical Risk), composite severity score (0.0 - 1.0), and primary risk drivers.

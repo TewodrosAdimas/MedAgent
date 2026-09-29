@@ -1,6 +1,6 @@
 """
-Path configuration for MedAgent.
-Resolves dynamic absolute paths across Windows/Linux environments.
+Filesystem path definitions for MedAgent.
+Centralizes all paths to data, models, logs, checkpoints, and docs.
 """
 
 from pathlib import Path
@@ -8,24 +8,16 @@ from pathlib import Path
 # Project Root Directory
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Source Directories
-SRC_DIR = PROJECT_ROOT / "src"
-CONFIG_DIR = SRC_DIR / "config"
-CONFIG_FILE = CONFIG_DIR / "config.yaml"
-
 # Data Directories
 DATA_DIR = PROJECT_ROOT / "data"
 DATA_RAW_DIR = DATA_DIR / "raw"
-DATA_RAW_ECG_DIR = DATA_RAW_DIR / "ecg"
-DATA_RAW_MITBIH_DIR = DATA_RAW_ECG_DIR / "mit-bih-arrhythmia-database-1.0.0"
-DATA_RAW_PPG_DIR = DATA_RAW_DIR / "ppg"
-DATA_RAW_EDA_DIR = DATA_RAW_DIR / "eda"
-DATA_RAW_IMAGING_DIR = DATA_RAW_DIR / "imaging"
-DATA_RAW_ACCEL_DIR = DATA_RAW_DIR / "accelerometer"
+DATA_PROCESSED_DIR = DATA_DIR / "processed"
 DATA_EXTERNAL_DIR = DATA_DIR / "external"
 
-# Processed Data Directories
-DATA_PROCESSED_DIR = DATA_DIR / "processed"
+DATA_RAW_ECG_DIR = DATA_RAW_DIR / "ecg"
+DATA_RAW_IMAGING_DIR = DATA_RAW_DIR / "imaging"
+DATA_RAW_PPG_DIR = DATA_RAW_DIR / "ppg"
+
 DATA_PROCESSED_SIGNALS_DIR = DATA_PROCESSED_DIR / "signals"
 DATA_PROCESSED_IMAGES_DIR = DATA_PROCESSED_DIR / "images"
 DATA_PROCESSED_MULTIMODAL_DIR = DATA_PROCESSED_DIR / "multimodal"
@@ -34,21 +26,22 @@ DATA_PROCESSED_MULTIMODAL_DIR = DATA_PROCESSED_DIR / "multimodal"
 MODELS_DIR = PROJECT_ROOT / "models"
 CHECKPOINTS_DIR = MODELS_DIR / "checkpoints"
 EXPORTED_MODELS_DIR = MODELS_DIR / "exported"
-PRETRAINED_DIR = MODELS_DIR / "pretrained"
+PRETRAINED_MODELS_DIR = MODELS_DIR / "pretrained"
 
-# Logs & Experiments Directories
+# Logging Directory
 LOGS_DIR = PROJECT_ROOT / "logs"
-EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
-DOCS_DIR = PROJECT_ROOT / "docs"
 
-# Ensure essential output directories exist
-for directory in [
+# Ensure runtime directories exist
+for path in [
+    DATA_RAW_DIR,
+    DATA_PROCESSED_DIR,
+    DATA_EXTERNAL_DIR,
     DATA_PROCESSED_SIGNALS_DIR,
     DATA_PROCESSED_IMAGES_DIR,
     DATA_PROCESSED_MULTIMODAL_DIR,
     CHECKPOINTS_DIR,
     EXPORTED_MODELS_DIR,
-    PRETRAINED_DIR,
+    PRETRAINED_MODELS_DIR,
     LOGS_DIR,
 ]:
-    directory.mkdir(parents=True, exist_ok=True)
+    path.mkdir(parents=True, exist_ok=True)
