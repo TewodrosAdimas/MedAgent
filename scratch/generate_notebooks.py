@@ -1,6 +1,7 @@
 """
 Comprehensive Notebook Generator for MedAgent.
 Generates fully functional, interactive Jupyter Notebooks (01 to 06) in notebooks/
+Configured with 'Python (MedAgent)' kernel and robust site-packages fallback.
 """
 
 import json
@@ -15,9 +16,9 @@ def make_notebook(cells):
         "cells": cells,
         "metadata": {
             "kernelspec": {
-                "display_name": "Python 3",
+                "display_name": "Python (MedAgent)",
                 "language": "python",
-                "name": "python3"
+                "name": "medagent"
             },
             "language_info": {
                 "name": "python",
@@ -53,6 +54,27 @@ def code_cell(source_code):
     }
 
 
+INIT_ENV_CODE = """import sys
+from pathlib import Path
+
+# Robust project root determination whether cwd is MedAgent or MedAgent/notebooks
+current_dir = Path.cwd().resolve()
+if (current_dir / "src").exists():
+    PROJECT_ROOT = current_dir
+elif (current_dir.parent / "src").exists():
+    PROJECT_ROOT = current_dir.parent
+else:
+    PROJECT_ROOT = current_dir
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# Ensure venv site-packages are accessible even if run from a generic kernel
+VENV_SITE = PROJECT_ROOT / "venv" / "Lib" / "site-packages"
+if VENV_SITE.exists() and str(VENV_SITE) not in sys.path:
+    sys.path.insert(0, str(VENV_SITE))"""
+
+
 # =====================================================================
 # Notebook 1: 01_signal_exploration.ipynb
 # =====================================================================
@@ -67,17 +89,12 @@ This notebook explores physiological signal processing for the **MIT-BIH Arrhyth
 4. IIR Notch Filtering ($60\\text{ Hz}$) to attenuate AC mains interference.
 5. Signal visualization and signal-to-noise ratio (SNR) comparison."""),
 
-    code_cell("""import sys
-from pathlib import Path
+    code_cell(f"""{INIT_ENV_CODE}
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 import wfdb
-
-# Add project root to sys.path
-PROJECT_ROOT = Path("..").resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
 
 from src.data.preprocessing.ecg_cleaner import (
     apply_bandpass_filter,
@@ -86,7 +103,8 @@ from src.data.preprocessing.ecg_cleaner import (
     normalize_signal
 )
 
-print(f"Project root: {PROJECT_ROOT}")"""),
+print(f"Project root: {{PROJECT_ROOT}}")
+print("WFDB and signal processing packages successfully imported!")"""),
 
     md_cell("""### 1. Load Raw MIT-BIH Arrhythmia Record
 Let's load Record `100` from `data/raw/ecg/mit-bih-arrhythmia-database-1.0.0/`."""),
@@ -181,7 +199,7 @@ plt.tight_layout()
 plt.show()"""),
 
     md_cell("""### 5. Overlay Comparison & R-Peak Alignment
-We can overlay the annotated R-peak locations from cardiologist annotations onto the cleaned waveform."""),
+We can overlay the annotated R-peak locations onto the cleaned waveform."""),
 
     code_cell("""peaks_in_segment = [p for p in annotation.sample if p < segment_samples]
 peak_times = np.array(peaks_in_segment) / fs
@@ -218,15 +236,11 @@ This notebook implements the AAMI EC57 standard heartbeat segmentation:
 5. Signal augmentation (Gaussian noise, amplitude scaling, time shifting).
 6. Building PyTorch `ECGDataset` and stratified `DataLoader`s with class weights."""),
 
-    code_cell("""import sys
-from pathlib import Path
+    code_cell(f"""{INIT_ENV_CODE}
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-
-PROJECT_ROOT = Path("..").resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
 
 from src.data.preprocessing.ecg_cleaner import (
     AAMI_CLASSES,
@@ -239,7 +253,9 @@ from src.data.loaders.ecg_dataset import (
     ECGAugmentation,
     ECGDataset,
     get_ecg_dataloaders
-)"""),
+)
+
+print("ECG Preprocessing modules loaded successfully!")"""),
 
     md_cell("""### 1. AAMI EC57 Arrhythmia Classes
 | Class ID | Class Name | Included PhysioNet Symbols |
@@ -368,17 +384,15 @@ This notebook implements physiological signal analysis for Photoplethysmography 
    - **pNN50** (% intervals differing by $>50\\text{ ms}$)
    - **LF / HF Ratio** (Sympathovagal balance index)."""),
 
-    code_cell("""import sys
-from pathlib import Path
+    code_cell(f"""{INIT_ENV_CODE}
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 
-PROJECT_ROOT = Path("..").resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
+from src.data.preprocessing.ecg_cleaner import apply_bandpass_filter, normalize_signal
 
-from src.data.preprocessing.ecg_cleaner import apply_bandpass_filter, normalize_signal"""),
+print("PPG Analysis tools loaded successfully!")"""),
 
     md_cell("""### 1. Synthetic / Recorded PPG Pulse Generation
 Let's generate a realistic multi-harmonic PPG pulse wave with respiratory baseline modulation and dicrotic notch."""),
@@ -482,17 +496,18 @@ This notebook explores the thoracic imaging pipeline:
 4. Implementing torchvision preprocessing transforms ($224 \\times 224$, ImageNet normalization).
 5. Visualizing sample radiographs and augmentations."""),
 
-    code_cell("""import sys
-from pathlib import Path
+    code_cell(f"""{INIT_ENV_CODE}
+
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import torch
 from torchvision import transforms
 
-PROJECT_ROOT = Path("..").resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))"""),
+from src.data.preprocessing.image_transforms import get_xray_transforms, denormalize_image
+from src.data.loaders.xray_dataset import XRAY_CLASSES, XRayDataset
+
+print("Chest X-ray imaging modules loaded successfully!")"""),
 
     md_cell("""### 1. Dataset Structure & Class Counts"""),
 
@@ -532,11 +547,7 @@ plt.show()"""),
 
     md_cell("""### 3. Preprocessing Transforms & Pixel Distributions"""),
 
-    code_cell("""transform_pipeline = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+    code_cell("""transform_pipeline = get_xray_transforms(image_size=224, is_training=False)
 
 sample_img = Image.open(list((xray_dir / "Cardiomegaly").glob("*.png"))[0]).convert("RGB")
 tensor_img = transform_pipeline(sample_img)
@@ -569,8 +580,8 @@ This notebook demonstrates the multimodal fusion architecture:
 5. Overall Patient Risk Stratification (**Low**, **Moderate**, **High/Critical**).
 6. Explainability: Grad-CAM heatmap visualization on Chest X-rays."""),
 
-    code_cell("""import sys
-from pathlib import Path
+    code_cell(f"""{INIT_ENV_CODE}
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -579,12 +590,8 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
 
-PROJECT_ROOT = Path("..").resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using Compute Device: {device}")"""),
+print(f"Using Compute Device: {{device}}")"""),
 
     md_cell("""### 1. Define Model Architectures
 Let's define the 1D CNN Signal Encoder, Vision Encoder, and Cross-Attention Fusion Transformer."""),
@@ -694,13 +701,11 @@ This notebook evaluates the Multi-Agent clinical decision support framework:
 5. **Report Generation Agent**: Formats comprehensive, clinician-facing decision-support reports.
 6. **Supervisor Agent**: Validates safety guardrails and evidence grounding."""),
 
-    code_cell("""import sys
-from pathlib import Path
+    code_cell(f"""{INIT_ENV_CODE}
+
 import json
 
-PROJECT_ROOT = Path("..").resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))"""),
+print("Agentic Evaluation modules loaded successfully!")"""),
 
     md_cell("""### 1. Simulated Clinical Patient Case"""),
 
@@ -834,4 +839,4 @@ for nb_name, cells in all_nbs.items():
         json.dump(make_notebook(cells), f, indent=1)
     print(f"Generated {nb_name} ({len(cells)} cells)")
 
-print("All 6 Jupyter Notebooks successfully generated!")
+print("All 6 Jupyter Notebooks successfully updated with MedAgent kernel metadata and fallback!")
